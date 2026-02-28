@@ -5,7 +5,7 @@ import { usePDFSync } from './hooks/usePDFSync'
 import './App.css'
 
 function App() {
-  const [viewers, setViewers] = useState([{ id: 1 }, { id: 2 }, { id: 3 }])
+  const [viewers, setViewers] = useState([{ id: 1 }, { id: 2 }])
   const [syncEnabled, setSyncEnabled] = useState(true)
   const viewerRefsMap = useRef({})
 
@@ -35,12 +35,14 @@ function App() {
 
   return (
     <div className="app">
-      <ControlPanel 
-        onAddPages={addViewer}
-        syncEnabled={syncEnabled}
-        onToggleSync={toggleSync}
-        canAdd={viewers.length < 4}
-      />
+      <div className="control-panel-wrapper">
+        <ControlPanel 
+          onAddPages={addViewer}
+          syncEnabled={syncEnabled}
+          onToggleSync={toggleSync}
+          canAdd={viewers.length < 4}
+        />
+      </div>
       <div className="viewers-container">
         {viewers.map(viewer => (
           <PDFViewer

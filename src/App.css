@@ -31,3 +31,11 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+.control-panel-wrapper {
+  padding: 16px 12px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 60px;
+}
