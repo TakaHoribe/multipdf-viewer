@@ -34,6 +34,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify build output
+        run: |
+          echo "Build output contents:"
+          ls -la dist/
+          echo "---"
+          echo "index.html content:"
+          cat dist/index.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
@@ -41,6 +49,11 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
+      
+      - name: List dist contents
+        run: |
+          echo "=== Dist folder structure ==="
+          find dist -type f -exec ls -lh {} \;
 
   deploy:
     environment:

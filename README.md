@@ -38,7 +38,15 @@ npm run preview
 1. GitHubリポジトリを作成
 2. `vite.config.js`の`base`パスをリポジトリ名に合わせて設定
 3. リポジトリのSettings > PagesでGitHub Pagesを有効化
+   - **重要**: Sourceは「GitHub Actions」を選択してください（「Deploy from a branch」ではありません）
 4. メインブランチにプッシュすると自動的にデプロイされます
+
+### トラブルシューティング
+
+もし`/src/main.jsx`が見つからないというエラーが出る場合：
+- GitHub Pagesの設定でSourceが「GitHub Actions」になっているか確認
+- GitHub Actionsのワークフローが成功しているか確認（Actionsタブで確認）
+- デプロイが完了するまで数分待つ
 
 ## 技術スタック
 
