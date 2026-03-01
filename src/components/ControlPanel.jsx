@@ -3,7 +3,7 @@ import './ControlPanel.css'
 function ControlPanel({ onAddPages, syncEnabled, onToggleSync, canAdd }) {
   return (
     <div className="control-panel">
-      <button 
+      <button
         className="add-pages-button"
         onClick={onAddPages}
         disabled={!canAdd}
@@ -11,7 +11,7 @@ function ControlPanel({ onAddPages, syncEnabled, onToggleSync, canAdd }) {
       >
         add pages
       </button>
-      <button 
+      <button
         className={`sync-button ${syncEnabled ? 'sync-on' : 'sync-off'}`}
         onClick={onToggleSync}
         title="同期を切り替え"
