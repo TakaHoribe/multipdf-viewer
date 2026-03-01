@@ -95,7 +95,13 @@ const PDFViewer = forwardRef(({
       console.log(`[PDFViewer ${id}] ArrayBuffer size:`, arrayBuffer.byteLength, 'bytes')
       
       console.log(`[PDFViewer ${id}] Creating PDF document...`)
-      const loadingTask = pdfjsLibRef.current.getDocument({ data: arrayBuffer })
+      const loadingTask = pdfjsLibRef.current.getDocument({
+        data: arrayBuffer,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+        useSystemFonts: true,
+      })
       const pdfDoc = await loadingTask.promise
       
       console.log(`[PDFViewer ${id}] PDF loaded successfully. Pages:`, pdfDoc.numPages)
@@ -156,8 +162,8 @@ const PDFViewer = forwardRef(({
     try {
       const page = await pdf.getPage(pageNum)
       
-      // Viewportを取得（rotation: 0で明示的に指定）
-      const viewport = page.getViewport({ scale: scale, rotation: 0 })
+      // Viewportを取得（PDFの回転メタデータを尊重）
+      const viewport = page.getViewport({ scale: scale, rotation: page.rotate })
       console.log(`[PDFViewer ${id}] Page ${pageNum} viewport: ${viewport.width}x${viewport.height}, scale=${scale}`)
       
       // 重要: canvas.height/widthを設定するとcontextが自動的にリセットされる

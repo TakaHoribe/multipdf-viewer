@@ -1,55 +1,30 @@
 # Multi-PDF Sync Viewer
 
-複数のPDFを横並びで表示し、スクロールとズームを同期できるWebアプリケーションです。
+**[Try the app](https://takahoribe.github.io/multipdf-viewer/)**
 
-## 機能
+A web app that displays multiple PDFs side by side with synchronized scrolling and zoom. Compare documents, review translations, or work with several PDFs at once—all in your browser.
 
-- 複数のPDFを横並びで表示（最大4つ）
-- スクロール同期機能（ON/OFF可能）
-- ズーム同期機能（ON/OFF可能）
-- ドラッグ&ドロップでPDFファイルを読み込み
-- "add pages"ボタンでPDF表示スペースを追加
-- 各スペースの"-"ボタンでスペースを削除
-- 透明感のあるモダンなデザイン
+## How it works
 
-## セキュリティ
+**Drag and drop** a PDF onto any viewer to load it. Use the **"scroll sync ON/OFF"** button at the top to toggle synchronization — when ON, scrolling and zooming in one viewer are mirrored across the others. Click **"add pages"** to add more viewers (up to 4), or **"×"** on a viewer to remove it. To jump all viewers to the same position, use **"Align to this page"** in the viewer you want to align from.
 
-- PDFファイルはブラウザ内で処理され、外部に送信されません
-- すべての処理はクライアントサイドで完結します
+## Privacy & Security
 
-## 開発
+- All processing happens in your browser
+- PDFs are never uploaded or sent to any server
+
+## Supported Browsers
+
+Works in modern browsers (Chrome, Firefox, Safari, Edge). JavaScript must be enabled.
+
+---
+
+## For Developers
 
 ```bash
-# 依存関係のインストール
 npm install
-
-# 開発サーバーの起動
-npm run dev
-
-# ビルド
-npm run build
-
-# プレビュー
-npm run preview
+npm run dev    # Start dev server
+npm run build  # Build for production
 ```
 
-## GitHub Pagesへのデプロイ
-
-1. GitHubリポジトリを作成
-2. `vite.config.js`の`base`パスをリポジトリ名に合わせて設定
-3. リポジトリのSettings > PagesでGitHub Pagesを有効化
-   - **重要**: Sourceは「GitHub Actions」を選択してください（「Deploy from a branch」ではありません）
-4. メインブランチにプッシュすると自動的にデプロイされます
-
-### トラブルシューティング
-
-もし`/src/main.jsx`が見つからないというエラーが出る場合：
-- GitHub Pagesの設定でSourceが「GitHub Actions」になっているか確認
-- GitHub Actionsのワークフローが成功しているか確認（Actionsタブで確認）
-- デプロイが完了するまで数分待つ
-
-## 技術スタック
-
-- React + Vite
-- PDF.js (CDN経由)
-- CSS (ガラスモーフィズムデザイン)
+To deploy to GitHub Pages: set `base` in `vite.config.js` to match your repo path (e.g. `/your-repo-name/`), enable GitHub Actions as the Pages source, and push to `main`.

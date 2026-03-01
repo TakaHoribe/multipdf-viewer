@@ -11,10 +11,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f5f5f5;
-  background-image: 
-    linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
-  background-size: 20px 20px;
   min-height: 100vh;
   overflow: hidden;
 }
@@ -31,15 +27,15 @@ body {
   display: flex;
   flex: 1;
   gap: 12px;
-  padding: 12px;
+  padding: 0 12px 12px 12px;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 .control-panel-wrapper {
-  padding: 16px 12px;
+  padding: 8px 12px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  min-height: 60px;
+  min-height: 44px;
 }
