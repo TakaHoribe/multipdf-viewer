@@ -6,7 +6,7 @@ A web app that displays multiple PDFs side by side with synchronized scrolling a
 
 ## How it works
 
-**Drag and drop** a PDF onto any viewer to load it. Use the **"scroll sync ON/OFF"** button at the top to toggle synchronization — when ON, scrolling and zooming in one viewer are mirrored across the others. Click **"add pages"** to add more viewers (up to 4), or **"×"** on a viewer to remove it. To jump all viewers to the same position, use **"Align to this page"** in the viewer you want to align from.
+**Drag and drop** a PDF onto any viewer to load it. Use the **"scroll sync ON/OFF"** button at the top to toggle synchronization — when ON, scrolling and zooming in one viewer are mirrored across the others. Click **"add pages"** to add more viewers (up to 10), or **"×"** on a viewer to remove it. To jump all viewers to the same position, use **"Align to this page"** in the viewer you want to align from.
 
 ## Privacy & Security
 

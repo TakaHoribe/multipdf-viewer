@@ -19,7 +19,7 @@ function App() {
   const { syncScroll, syncZoom } = usePDFSync(viewerRefsMap, syncEnabled)
 
   const addViewer = () => {
-    if (viewers.length < 4) {
+    if (viewers.length < 10) {
       const newId = Math.max(...viewers.map(v => v.id), 0) + 1
       setViewers([...viewers, { id: newId }])
     }
@@ -62,7 +62,7 @@ function App() {
           onAddPages={addViewer}
           syncEnabled={syncEnabled}
           onToggleSync={toggleSync}
-          canAdd={viewers.length < 4}
+          canAdd={viewers.length < 10}
         />
       </div>
       <div className="viewers-container">
