@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import PDFViewer from './components/PDFViewer'
 import ControlPanel from './components/ControlPanel'
 import { usePDFSync } from './hooks/usePDFSync'
@@ -8,6 +8,13 @@ function App() {
   const [viewers, setViewers] = useState([{ id: 1 }, { id: 2 }])
   const [syncEnabled, setSyncEnabled] = useState(true)
   const viewerRefsMap = useRef({})
+
+  // デバッグ情報
+  useEffect(() => {
+    console.log('App component mounted')
+    console.log('Viewers count:', viewers.length)
+    console.log('Sync enabled:', syncEnabled)
+  }, [viewers.length, syncEnabled])
 
   const { syncScroll, syncZoom } = usePDFSync(viewerRefsMap.current, syncEnabled)
 

@@ -24,26 +24,39 @@ const PDFViewer = forwardRef(({
 
   // PDF.jsをCDNから読み込む
   useEffect(() => {
+    console.log(`[PDFViewer ${id}] Initializing PDF.js...`)
+    
     if (window.pdfjsLib) {
+      console.log(`[PDFViewer ${id}] PDF.js already loaded`)
       pdfjsLibRef.current = window.pdfjsLib
       return
     }
 
+    console.log(`[PDFViewer ${id}] Loading PDF.js from CDN...`)
     const script = document.createElement('script')
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    
     script.onload = () => {
+      console.log(`[PDFViewer ${id}] PDF.js loaded successfully`)
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
       pdfjsLibRef.current = window.pdfjsLib
+      console.log(`[PDFViewer ${id}] PDF.js worker configured`)
     }
+    
+    script.onerror = (error) => {
+      console.error(`[PDFViewer ${id}] Failed to load PDF.js:`, error)
+    }
+    
     document.head.appendChild(script)
+    console.log(`[PDFViewer ${id}] PDF.js script tag added to head`)
 
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script)
       }
     }
-  }, [])
+  }, [id])
 
   // 親コンポーネントにrefを登録
   useEffect(() => {
@@ -54,24 +67,33 @@ const PDFViewer = forwardRef(({
 
   // PDFを読み込む
   const loadPDF = async (file) => {
+    console.log(`[PDFViewer ${id}] Loading PDF file:`, file.name, file.size, 'bytes')
+    
     if (!pdfjsLibRef.current) {
-      console.error('PDF.js is not loaded yet')
+      console.error(`[PDFViewer ${id}] PDF.js is not loaded yet`)
+      alert('PDF.jsが読み込まれていません。ページを再読み込みしてください。')
       return
     }
 
     setIsLoading(true)
     try {
+      console.log(`[PDFViewer ${id}] Reading file as ArrayBuffer...`)
       const arrayBuffer = await file.arrayBuffer()
+      console.log(`[PDFViewer ${id}] ArrayBuffer size:`, arrayBuffer.byteLength, 'bytes')
+      
+      console.log(`[PDFViewer ${id}] Creating PDF document...`)
       const loadingTask = pdfjsLibRef.current.getDocument({ data: arrayBuffer })
       const pdfDoc = await loadingTask.promise
       
+      console.log(`[PDFViewer ${id}] PDF loaded successfully. Pages:`, pdfDoc.numPages)
       setPdf(pdfDoc)
       setTotalPages(pdfDoc.numPages)
       setCurrentPage(1)
       setScale(1.0)
     } catch (error) {
-      console.error('Error loading PDF:', error)
-      alert('PDFの読み込みに失敗しました')
+      console.error(`[PDFViewer ${id}] Error loading PDF:`, error)
+      console.error(`[PDFViewer ${id}] Error stack:`, error.stack)
+      alert(`PDFの読み込みに失敗しました: ${error.message}`)
     } finally {
       setIsLoading(false)
     }
