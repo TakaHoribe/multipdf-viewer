@@ -16,7 +16,7 @@ function ControlPanel({ onAddPages, syncEnabled, onToggleSync, canAdd }) {
         onClick={onToggleSync}
         title="同期を切り替え"
       >
-        Sync {syncEnabled ? 'ON' : 'OFF'}
+        scroll sync {syncEnabled ? 'ON' : 'OFF'}
       </button>
     </div>
   )

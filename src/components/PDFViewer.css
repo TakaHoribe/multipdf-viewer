@@ -2,11 +2,11 @@
   position: relative;
   flex: 1;
   min-width: 300px;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -14,9 +14,9 @@
 }
 
 .pdf-viewer.dragging {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.02);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.12);
+  transform: scale(1.01);
 }
 
 .remove-button {
@@ -25,9 +25,9 @@
   right: 8px;
   width: 28px;
   height: 28px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 6px;
   color: #333;
   font-size: 20px;
@@ -41,8 +41,74 @@
 }
 
 .remove-button:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.15);
   transform: scale(1.1);
+}
+
+.pdf-utility-bar {
+  display: flex;
+  align-items: center;
+  padding: 12px 48px 12px 16px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pdf-title {
+  flex-shrink: 1;
+  min-width: 0;
+  margin-right: 16px;
+  color: #333;
+  font-size: 16px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-utility-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.pdf-utility-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.pdf-utility-sep {
+  width: 1px;
+  height: 1.2em;
+  margin: 0 8px;
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.pdf-page-indicator {
+  color: rgba(0, 0, 0, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.align-button-inline {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  color: #333;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.align-button-inline:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
 }
 
 .drop-zone {
@@ -50,7 +116,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.5);
   font-size: 18px;
   text-align: center;
   padding: 40px;
@@ -78,17 +144,12 @@
 .pdf-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .pdf-controls button {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 6px;
   color: #333;
   padding: 6px 12px;
@@ -98,7 +159,8 @@
 }
 
 .pdf-controls button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
 }
 
@@ -108,7 +170,7 @@
 }
 
 .pdf-controls span {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(0, 0, 0, 0.7);
   font-size: 14px;
   min-width: 60px;
   text-align: center;
@@ -117,11 +179,21 @@
 .pdf-scroll-container {
   flex: 1;
   overflow: auto;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(0, 0, 0, 0.02);
   padding: 20px;
+}
+
+.pdf-pages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.pdf-page-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .pdf-canvas {
@@ -129,4 +201,6 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   background: white;
   border-radius: 4px;
+  max-width: 100%;
+  height: auto;
 }

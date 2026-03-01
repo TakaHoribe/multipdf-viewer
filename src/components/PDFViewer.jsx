@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react'
 import './PDFViewer.css'
+
+const isTransformCorrect = (context) => {
+  const t = context.getTransform()
+  return t.d >= 0 && t.a >= 0
+}
 
 const PDFViewer = forwardRef(({ 
   id, 
@@ -7,20 +12,28 @@ const PDFViewer = forwardRef(({
   onRegisterRef, 
   syncScroll, 
   syncZoom, 
-  syncEnabled 
+  syncEnabled,
+  onAlignToThis
 }, ref) => {
   const containerRef = useRef(null)
-  const canvasRef = useRef(null)
   const scrollContainerRef = useRef(null)
   const internalRef = useRef(null)
+  const canvasRefs = useRef({})
   const [pdf, setPdf] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
+  const [pdfTitle, setPdfTitle] = useState('')
+  const [currentPage, setCurrentPage] = useState(0)
   const [scale, setScale] = useState(1.0)
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [renderedPages, setRenderedPages] = useState(new Set())
+  const renderedPagesRef = useRef(new Set()) // 最新のrenderedPagesを保持
   const isSyncingRef = useRef(false)
+  const lastScrollTopRef = useRef(0)
+  const lastScrollLeftRef = useRef(0)
   const pdfjsLibRef = useRef(null)
+  const pageHeights = useRef({})
+  const renderingPages = useRef(new Set()) // レンダリング中のページを追跡
 
   // PDF.jsをCDNから読み込む
   useEffect(() => {
@@ -86,10 +99,17 @@ const PDFViewer = forwardRef(({
       const pdfDoc = await loadingTask.promise
       
       console.log(`[PDFViewer ${id}] PDF loaded successfully. Pages:`, pdfDoc.numPages)
+      
       setPdf(pdfDoc)
       setTotalPages(pdfDoc.numPages)
-      setCurrentPage(1)
+      setPdfTitle(file.name)
       setScale(1.0)
+      setRenderedPages(new Set())
+      setCurrentPage(0)
+      pageHeights.current = {}
+      renderingPages.current = new Set() // レンダリング中のページをリセット
+      lastScrollTopRef.current = 0
+      lastScrollLeftRef.current = 0
     } catch (error) {
       console.error(`[PDFViewer ${id}] Error loading PDF:`, error)
       console.error(`[PDFViewer ${id}] Error stack:`, error.stack)
@@ -100,34 +120,256 @@ const PDFViewer = forwardRef(({
   }
 
   // ページをレンダリング
-  useEffect(() => {
-    const renderPage = async () => {
-      if (!pdf || !canvasRef.current || !pdfjsLibRef.current) return
+  const renderPage = useCallback(async (pageNum, force = false) => {
+    if (!pdf || !pdfjsLibRef.current) return
+    
+    // 既にレンダリング中または完了している場合はスキップ（force=trueの場合は再レンダリング）
+    // renderedPagesRef.currentを使用して最新の状態を参照
+    if (!force && (renderedPagesRef.current.has(pageNum) || renderingPages.current.has(pageNum))) {
+      console.log(`[PDFViewer ${id}] Page ${pageNum} render skipped (already rendered or rendering)`)
+      return
+    }
+    
+    const renderStartTime = Date.now()
+    console.log(`[PDFViewer ${id}] Page ${pageNum} render started at ${new Date(renderStartTime).toISOString()}, force=${force}`)
+    
+    // force=trueの場合は、レンダリング済みマークを解除
+    if (force && renderedPagesRef.current.has(pageNum)) {
+      setRenderedPages(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(pageNum)
+        renderedPagesRef.current = newSet
+        return newSet
+      })
+      console.log(`[PDFViewer ${id}] Page ${pageNum} rendered mark cleared (force=true)`)
+    }
 
-      try {
-        const page = await pdf.getPage(currentPage)
-        const viewport = page.getViewport({ scale: scale })
-        const canvas = canvasRef.current
-        const context = canvas.getContext('2d')
+    const canvas = canvasRefs.current[pageNum]
+    if (!canvas) {
+      console.warn(`[PDFViewer ${id}] Page ${pageNum} canvas not found`)
+      return
+    }
 
-        canvas.height = viewport.height
+    // レンダリング中としてマーク
+    renderingPages.current.add(pageNum)
+
+    try {
+      const page = await pdf.getPage(pageNum)
+      
+      // Viewportを取得（rotation: 0で明示的に指定）
+      const viewport = page.getViewport({ scale: scale, rotation: 0 })
+      console.log(`[PDFViewer ${id}] Page ${pageNum} viewport: ${viewport.width}x${viewport.height}, scale=${scale}`)
+      
+      // 重要: canvas.height/widthを設定するとcontextが自動的にリセットされる
+      // 拡大ボタンを押した時に正しく動作するのは、このリセットが確実に実行されるため
+      // 初回レンダリング時も同じように、必ずサイズを設定してcontextをリセットする
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      
+      // サイズ設定後、contextを取得（この時点でcontextはリセットされている）
+      const context = canvas.getContext('2d', { willReadFrequently: false })
+      
+      // 念のため、明示的にtransformをリセット（上下逆転を防ぐ）
+      // 単位行列を設定: (a=1, b=0, c=0, d=1, e=0, f=0)
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      
+      // Canvasをクリア（拡大ボタンを押した時と同じ状態にする）
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      
+      pageHeights.current[pageNum] = viewport.height
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      }
+
+      // PDF.jsでレンダリング（リトライロジック付き）
+      let renderSuccess = false
+      let retryCount = 0
+      const maxRetries = 3
+      const renderPromiseStartTime = Date.now()
+      
+      while (!renderSuccess && retryCount < maxRetries) {
+        try {
+          await page.render(renderContext).promise
+          renderSuccess = true
+          const renderPromiseEndTime = Date.now()
+          const renderPromiseTime = renderPromiseEndTime - renderPromiseStartTime
+          console.log(`[PDFViewer ${id}] Page ${pageNum} render promise completed in ${renderPromiseTime}ms`)
+        } catch (renderError) {
+          retryCount++
+          console.warn(`[PDFViewer ${id}] Page ${pageNum} render attempt ${retryCount} failed:`, renderError)
+          
+          if (retryCount < maxRetries) {
+            // リトライ前に少し待機
+            await new Promise(resolve => setTimeout(resolve, 100 * retryCount))
+            // Canvasを再初期化
+            canvas.width = viewport.width
+            canvas.height = viewport.height
+            const retryContext = canvas.getContext('2d', { willReadFrequently: false })
+            retryContext.setTransform(1, 0, 0, 1, 0, 0)
+            retryContext.clearRect(0, 0, canvas.width, canvas.height)
+            renderContext.canvasContext = retryContext
+          } else {
+            throw renderError
+          }
+        }
+      }
+      
+      // レンダリング後のtransformを確認（上下逆転を検出）
+      const transformAfter = context.getTransform()
+      const isCorrect = isTransformCorrect(context)
+      
+      if (!isCorrect) {
+        console.error(`[PDFViewer ${id}] Page ${pageNum} transform is incorrect after render! Transform:`, transformAfter)
+        
+        // 拡大ボタンを押した時と同じ処理: 完全にリセットして再レンダリング
+        // 1. Canvasサイズを再設定（これでcontextがリセットされる）
         canvas.width = viewport.width
-
-        const renderContext = {
-          canvasContext: context,
+        canvas.height = viewport.height
+        
+        // 2. Contextを再取得
+        const newContext = canvas.getContext('2d', { willReadFrequently: false })
+        
+        // 3. Transformをリセット
+        newContext.setTransform(1, 0, 0, 1, 0, 0)
+        
+        // 4. Canvasをクリア
+        newContext.clearRect(0, 0, canvas.width, canvas.height)
+        
+        // 5. 再レンダリング
+        const newRenderContext = {
+          canvasContext: newContext,
           viewport: viewport
         }
+        await page.render(newRenderContext).promise
+        
+        // 再確認
+        const transformAfterFix = newContext.getTransform()
+        const isCorrectAfterFix = isTransformCorrect(newContext)
+        
+        if (!isCorrectAfterFix) {
+          console.error(`[PDFViewer ${id}] Page ${pageNum} still has incorrect transform after fix attempt:`, transformAfterFix)
+        } else {
+          console.log(`[PDFViewer ${id}] Page ${pageNum} transform fixed successfully`)
+        }
+      }
+      
+      setRenderedPages(prev => {
+        const newSet = new Set([...prev, pageNum])
+        renderedPagesRef.current = newSet
+        return newSet
+      })
+      const renderEndTime = Date.now()
+      const renderTime = renderEndTime - renderStartTime
+      console.log(`[PDFViewer ${id}] Page ${pageNum} rendered successfully in ${renderTime}ms`)
+    } catch (error) {
+      const renderEndTime = Date.now()
+      const renderTime = renderEndTime - renderStartTime
+      console.error(`[PDFViewer ${id}] Error rendering page ${pageNum} after ${renderTime}ms:`, error)
+      // エラー時はレンダリング済みから除外して、再試行可能にする
+      setRenderedPages(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(pageNum)
+        renderedPagesRef.current = newSet
+        return newSet
+      })
+      throw error // エラーを再スローして、呼び出し元で処理できるようにする
+    } finally {
+      // レンダリング完了（成功・失敗問わず）したらマークを解除
+      renderingPages.current.delete(pageNum)
+    }
+  }, [pdf, scale, id])
 
-        await page.render(renderContext).promise
-      } catch (error) {
-        console.error('Error rendering page:', error)
+  // PDF読み込み時に全ページをレンダリング（Chromeの実装を見習う）
+  useEffect(() => {
+    if (!pdf || !pdfjsLibRef.current || totalPages === 0) return
+
+    console.log(`[PDFViewer ${id}] Starting to render all ${totalPages} pages`)
+    const renderStartTime = Date.now()
+
+    // 全ページを並列でレンダリング
+    const renderPromises = []
+    for (let i = 1; i <= totalPages; i++) {
+      renderPromises.push(
+        renderPage(i).catch(error => {
+          console.error(`[PDFViewer ${id}] Failed to render page ${i}:`, error)
+        })
+      )
+    }
+
+    // すべてのレンダリングが完了するまで待機
+    Promise.all(renderPromises).then(() => {
+      const renderEndTime = Date.now()
+      const renderTime = renderEndTime - renderStartTime
+      console.log(`[PDFViewer ${id}] All ${totalPages} pages rendered in ${renderTime}ms`)
+    })
+  }, [pdf, totalPages, id, renderPage])
+
+  // 拡大縮小時も全ページを再レンダリング
+  useEffect(() => {
+    if (!pdf || !pdfjsLibRef.current || totalPages === 0) return
+
+    console.log(`[PDFViewer ${id}] Scale changed to ${scale}. Re-rendering all ${totalPages} pages.`)
+    const renderStartTime = Date.now()
+
+    // すべてのレンダリング済みマークを解除
+    setRenderedPages(new Set())
+    renderingPages.current = new Set()
+    pageHeights.current = {}
+
+    // 全ページを並列で再レンダリング
+    const renderPromises = []
+    for (let i = 1; i <= totalPages; i++) {
+      renderPromises.push(
+        renderPage(i, true).catch(error => {
+          console.error(`[PDFViewer ${id}] Failed to re-render page ${i}:`, error)
+        })
+      )
+    }
+
+    // すべてのレンダリングが完了するまで待機
+    Promise.all(renderPromises).then(() => {
+      const renderEndTime = Date.now()
+      const renderTime = renderEndTime - renderStartTime
+      console.log(`[PDFViewer ${id}] All ${totalPages} pages re-rendered in ${renderTime}ms`)
+    })
+  }, [scale, pdf, totalPages, id, renderPage])
+
+  // スクロール位置から現在のページ数を計算（表示用）
+  useEffect(() => {
+    if (!pdf || !scrollContainerRef.current || totalPages === 0) return
+
+    const container = scrollContainerRef.current
+
+    const updateCurrentPage = () => {
+      const containerTop = container.scrollTop
+
+      // 現在のページ数を計算（スクロール位置から）
+      let currentPageNum = 0
+      let currentTopForPage = 0
+      for (let i = 1; i <= totalPages; i++) {
+        const pageHeight = pageHeights.current[i] || 1000 * scale
+        const pageBottom = currentTopForPage + pageHeight
+        
+        if (containerTop >= currentTopForPage && containerTop < pageBottom) {
+          currentPageNum = i
+          break
+        }
+        currentTopForPage = pageBottom + 20
+      }
+      if (currentPageNum > 0) {
+        setCurrentPage(currentPageNum)
       }
     }
 
-    if (pdf && currentPage) {
-      renderPage()
+    container.addEventListener('scroll', updateCurrentPage, { passive: true })
+    updateCurrentPage() // 初回実行
+
+    return () => {
+      container.removeEventListener('scroll', updateCurrentPage)
     }
-  }, [pdf, currentPage, scale])
+  }, [pdf, totalPages, scale, id])
 
   // ドラッグ&ドロップ処理
   const handleDragOver = (e) => {
@@ -161,27 +403,58 @@ const PDFViewer = forwardRef(({
     }
   }
 
+  // sync ON になったタイミングで lastScrollRef を現在位置にリセット（sync OFF 中の移動量を蓄積しない）
+  useEffect(() => {
+    if (syncEnabled && scrollContainerRef.current) {
+      lastScrollTopRef.current = scrollContainerRef.current.scrollTop
+      lastScrollLeftRef.current = scrollContainerRef.current.scrollLeft
+    }
+  }, [syncEnabled])
+
   // スクロール同期
   useEffect(() => {
-    if (!scrollContainerRef.current || !syncScroll) return
+    // PDFが読み込まれていない、またはscrollContainerが存在しない場合はスキップ
+    if (!pdf || !scrollContainerRef.current || !syncScroll) {
+      console.log(`[PDFViewer ${id}] Scroll sync setup skipped: pdf=${!!pdf}, scrollContainer=${!!scrollContainerRef.current}, syncScroll=${!!syncScroll}`)
+      return
+    }
 
-    const handleScroll = (e) => {
-      if (isSyncingRef.current || !syncEnabled) return
-      
-      isSyncingRef.current = true
-      syncScroll(id, scrollContainerRef.current.scrollTop, scrollContainerRef.current.scrollLeft)
-      setTimeout(() => {
-        isSyncingRef.current = false
-      }, 50)
+    console.log(`[PDFViewer ${id}] Setting up scroll sync: syncEnabled=${syncEnabled}`)
+
+    const handleScroll = () => {
+      if (!syncEnabled) return
+
+      const currentTop = scrollContainerRef.current.scrollTop
+      const currentLeft = scrollContainerRef.current.scrollLeft
+
+      if (isSyncingRef.current) {
+        lastScrollTopRef.current = currentTop
+        lastScrollLeftRef.current = currentLeft
+        return
+      }
+
+      const scrollDelta = currentTop - lastScrollTopRef.current
+      const scrollLeftDelta = currentLeft - lastScrollLeftRef.current
+
+      if (scrollDelta === 0 && scrollLeftDelta === 0) return
+
+      lastScrollTopRef.current = currentTop
+      lastScrollLeftRef.current = currentLeft
+
+      if (syncScroll) {
+        syncScroll(id, scrollDelta, scrollLeftDelta)
+      }
     }
 
     const container = scrollContainerRef.current
-    container.addEventListener('scroll', handleScroll)
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    console.log(`[PDFViewer ${id}] Scroll sync event listener added`)
 
     return () => {
       container.removeEventListener('scroll', handleScroll)
+      console.log(`[PDFViewer ${id}] Scroll sync event listener removed`)
     }
-  }, [id, syncScroll, syncEnabled])
+  }, [id, syncScroll, syncEnabled, pdf])
 
   // ズーム同期
   const handleZoom = (newScale) => {
@@ -200,16 +473,30 @@ const PDFViewer = forwardRef(({
     }, 50)
   }
 
+  // このページに揃える
+  const handleAlignToThis = () => {
+    if (!scrollContainerRef.current || !pdf) return
+    
+    const scrollTop = scrollContainerRef.current.scrollTop
+    const scrollLeft = scrollContainerRef.current.scrollLeft
+    
+    if (onAlignToThis) {
+      onAlignToThis(id, scrollTop, scrollLeft, scale)
+    }
+  }
+
   // 外部からの同期イベントを受け取る
   useImperativeHandle(internalRef, () => ({
     scrollTo: (scrollTop, scrollLeft) => {
-      if (scrollContainerRef.current && !isSyncingRef.current) {
+      if (scrollContainerRef.current) {
         isSyncingRef.current = true
         scrollContainerRef.current.scrollTop = scrollTop
         scrollContainerRef.current.scrollLeft = scrollLeft
+        lastScrollTopRef.current = scrollTop
+        lastScrollLeftRef.current = scrollLeft
         setTimeout(() => {
           isSyncingRef.current = false
-        }, 50)
+        }, 100)
       }
     },
     setZoom: (newScale) => {
@@ -233,6 +520,15 @@ const PDFViewer = forwardRef(({
     }
   }))
 
+  // ページコンテナの高さを計算
+  const getTotalHeight = () => {
+    let total = 0
+    for (let i = 1; i <= totalPages; i++) {
+      total += (pageHeights.current[i] || 1000 * scale) + 20
+    }
+    return total
+  }
+
   return (
     <div 
       className={`pdf-viewer ${isDragging ? 'dragging' : ''}`}
@@ -242,7 +538,7 @@ const PDFViewer = forwardRef(({
       ref={containerRef}
     >
       <button className="remove-button" onClick={onRemove} title="削除">
-        −
+        ×
       </button>
       
       {isLoading && (
@@ -259,27 +555,57 @@ const PDFViewer = forwardRef(({
 
       {pdf && (
         <>
-          <div className="pdf-controls">
-            <button 
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-            >
-              ←
-            </button>
-            <span>{currentPage} / {totalPages}</span>
-            <button 
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-            >
-              →
-            </button>
-            <button onClick={() => handleZoom(scale - 0.1)}>−</button>
-            <span>{Math.round(scale * 100)}%</span>
-            <button onClick={() => handleZoom(scale + 0.1)}>+</button>
+          <div className="pdf-utility-bar">
+            {pdfTitle && (
+              <div className="pdf-title">
+                {pdfTitle}
+              </div>
+            )}
+            <div className="pdf-utility-spacer" />
+            <div className="pdf-utility-center">
+              {currentPage > 0 && totalPages > 0 && (
+                <>
+                  <div className="pdf-page-indicator">
+                    {currentPage} / {totalPages}
+                  </div>
+                  <span className="pdf-utility-sep" />
+                </>
+              )}
+              <div className="pdf-controls">
+                <button onClick={() => handleZoom(scale - 0.1)}>−</button>
+                <span>{Math.round(scale * 100)}%</span>
+                <button onClick={() => handleZoom(scale + 0.1)}>+</button>
+              </div>
+              <span className="pdf-utility-sep" />
+              <button 
+                className="align-button-inline" 
+                onClick={handleAlignToThis} 
+                title="Align other viewers to this page"
+              >
+                Align to this page
+              </button>
+            </div>
+            <div className="pdf-utility-spacer" />
           </div>
           
           <div className="pdf-scroll-container" ref={scrollContainerRef}>
-            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+            <div className="pdf-pages-container" style={{ minHeight: getTotalHeight() }}>
+              {Array.from({ length: totalPages }, (_, i) => {
+                const pageNum = i + 1
+                return (
+                  <div key={pageNum} className="pdf-page-wrapper">
+                    <canvas 
+                      ref={el => {
+                        if (el) {
+                          canvasRefs.current[pageNum] = el
+                        }
+                      }}
+                      className="pdf-canvas"
+                    />
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </>
       )}

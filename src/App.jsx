@@ -16,7 +16,7 @@ function App() {
     console.log('Sync enabled:', syncEnabled)
   }, [viewers.length, syncEnabled])
 
-  const { syncScroll, syncZoom } = usePDFSync(viewerRefsMap.current, syncEnabled)
+  const { syncScroll, syncZoom } = usePDFSync(viewerRefsMap, syncEnabled)
 
   const addViewer = () => {
     if (viewers.length < 4) {
@@ -40,6 +40,21 @@ function App() {
     setSyncEnabled(!syncEnabled)
   }
 
+  const alignToViewer = (sourceId, scrollTop, scrollLeft, scale) => {
+    Object.entries(viewerRefsMap.current).forEach(([id, ref]) => {
+      if (id !== String(sourceId) && ref && ref.current) {
+        try {
+          ref.current.setZoom(scale)
+          setTimeout(() => {
+            ref.current.scrollTo(scrollTop, scrollLeft)
+          }, 100)
+        } catch (error) {
+          console.error('Error aligning viewer:', error)
+        }
+      }
+    })
+  }
+
   return (
     <div className="app">
       <div className="control-panel-wrapper">
@@ -60,6 +75,7 @@ function App() {
             syncScroll={syncScroll}
             syncZoom={syncZoom}
             syncEnabled={syncEnabled}
+            onAlignToThis={alignToViewer}
           />
         ))}
       </div>
